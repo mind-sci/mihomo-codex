@@ -1,0 +1,47 @@
+version: "3.8"
+
+services:
+  mihomo_proxy:
+    build: ./mihomo_proxy
+    image: mihomo-proxy:1.0
+    container_name: mihomo_proxy
+    restart: unless-stopped
+    ports:
+      - "7890:7890"   # HTTP/HTTPS/SOCKS5
+      - "22001:22"    # SSH
+    volumes:
+      - ./authorized_keys:/tmp/authorized_keys:ro
+      - ./mihomo_proxy/conf:/etc/mihomo
+    networks:
+      - proxy-net
+
+  codex_gpu:
+    build: ./codex_gpu
+    image: codex-gpu:1.0
+    container_name: codex_gpu_main
+    restart: unless-stopped
+    environment:
+      - MIHOMO_HTTP_PROXY=http://mihomo_proxy:7890
+      - MIHOMO_HTTPS_PROXY=http://mihomo_proxy:7890
+      - MIHOMO_ALL_PROXY=socks5://mihomo_proxy:7890
+      - MIHOMO_NO_PROXY=localhost,127.0.0.1,.local
+    ports:
+      - "22002:22"    # SSH
+    volumes:
+      - ./authorized_keys:/tmp/authorized_keys:ro
+      - ${HOME}/Workspaces/main:/root/workspace
+      - ${HOME}/Share:/root/share
+    networks:
+      - proxy-net
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+networks:
+  proxy-net:
+    name: proxy-net
+    driver: bridge
